@@ -7,6 +7,9 @@ between python &amp; Colyseus.
 For most people the repo won't be useful as this is way too experimental.
 However, you can learn with me if you wish to.
 
+Such a project can be viewed as the first step to possibly expand the following list:
+[List of all multiplayer SDKs tied to Colyseus](https://github.com/orgs/colyseus/repositories?q=SDK)
+
 
 ## Getting started
 
