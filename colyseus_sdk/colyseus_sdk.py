@@ -4,8 +4,8 @@ import threading
 import requests
 import websocket
 
-from .elements import Protocol
-from .schema import MutableDataChunk
+from .schema import MutableDataChunk, Schema
+from .homemade_deserializer.full_decode import extract_first_fields, Protocol
 
 
 protocol_state = client = None
@@ -87,13 +87,32 @@ class ColyseusClient:
             # Deserialize the binary data properly
             # deserialized_data = deserialize_binary_data(data)
 
-            if not self.initial_state_received:  # msg initial, Handle 1st message
+            if self.initial_state_received:
+                # Handle incremental updates
+                print("Delta update received:", data)
+                self.apply_delta_update(data)
+            else:  # msg initial, Handle 1st message
+                self.initial_state_received = True
                 print("Initial room state(raw):", data)
+
+                # process the 1st message
+                print('MessageZero>received>> processing ..........')
+                session, serializer, offset_nxt_chunk = extract_first_fields(data)
+                print('interpretation 1er msg:' , session, serializer, offset_nxt_chunk )
+
+                my_sch = Schema.modelize_from_data(data[offset_nxt_chunk:])
+                # TODO - controle d'erreur si les valeurs par défaut sont pas toutes données p/r au schéma
+                # TODO - s'assurer que cest bien comme ca qu'on map 0x80 0x81 0x82 etc.
+                # sur les variables fournies en début de communication
+                protocol_state.mutable_data = MutableDataChunk(my_sch, {
+                    "x": 0, "y": 0, "tick": 0,
+                    "mapWidth": 0,
+                    "mapHeight": 0
+                })
+
                 # Send ack  to the server!
                 self.acknowledge_initial_state()
 
-                # process the 1st message
-                protocol_state.mutable_data = MutableDataChunk
                 # session, serializer, offset_nxt_chunk = extract_first_fields(data)
                 # nxt_chunk = data[offset_nxt_chunk:]
                 # self.initial_state_received = True
@@ -105,11 +124,6 @@ class ColyseusClient:
                 #     room_schema.add_field(var, schema_s_type)
                 #     print(var, schema_s_type)
                 # self.state = room_schema
-
-            else:
-                # Handle incremental updates
-                print("Delta update received:", data)
-                self.apply_delta_update(data)
 
     # Send a binary or text message back to the server to confirm that you received the initial state
     # The exact format of the acknowledgment depends on Colyseus protocol
@@ -126,25 +140,32 @@ class ColyseusClient:
     def on_close(self, ws, close_status_code, close_msg):
         print("Connection closed")
 
-    def notify_server(self, various_data):
-            print('sendin:')
-            y = bytes(various_data)# struct.pack('!H', various_data[0])
-            print(y)
-            self.ws.send(y)
+    def push_data(self, bytes_li:list):
+        print('data before packing is:', bytes_li)
+        payload = struct.pack('<' + 'B' * len(bytes_li), *bytes_li)
+        print()
+        #print(payload)
 
-    def handle_state_update(self, update):
-        # This method processes full state changes.
-        print(f"Received full state update: {update}")
-        # For now, we simply update the state directly
-        self.state = update  # Replace entire state with the initial full state
+        #payload = [Protocol.ROOM_DATA_BYTES,]
+        #payload.extend(uint8_li)
+        #uint8_li[0] = Protocol.ROOM_DATA_BYTES
+        #payload = uint8_li
+
+        #y = bytes(various_data)
+        # struct.pack('!H', various_data[0])
+        print('gonna push to ws:',payload)
+        self.ws.send(
+            payload,
+            websocket.ABNF.OPCODE_BINARY  #omg ! forget this line and you are DOOMED
+        )
 
     def apply_delta_update(self, delta):
-        # This method applies delta changes to the existing state
-        print('DIFF=',self.state.deserialize(delta))
-
-        # Placeholder for logic to apply the delta to the current state
+        # dummy method for logic to apply the delta to the current state
         # In practice, you would need to update the existing state based on the changes in `delta`
-        # self.state.update(delta)  # This is a simplified example
+        # In other words, the goal of current method is: apply delta change to the existing game state
+        protocol_state.mutable_data.apply_delta(
+            delta
+        )
 
     def disconnect(self):
         self.ws.close()

@@ -6,6 +6,18 @@ we will be able to use Schema.
 """
 
 
+class Protocol:
+    HANDSHAKE = 9
+    JOIN_ROOM = 10
+    ERROR = 11
+    LEAVE_ROOM = 12
+    ROOM_DATA = 13
+    ROOM_STATE = 14
+    ROOM_STATE_PATCH = 15
+    ROOM_DATA_SCHEMA = 16
+    ROOM_DATA_BYTES = 17
+
+
 def byte_in_Ax_format(byte_value):
     # Mask the most significant nibble and compare with 0xA0
     return (byte_value & 0xF0) == 0xA0
@@ -89,3 +101,44 @@ def split_bytes_by_rank(li_bytes: bytes):
     if current_sequence:
         rez.append(bytes(current_sequence))
     return rez
+
+
+def extract_first_fields(buffer):
+    """
+    :param buffer:
+    :return: reconnection_token, serializer_id, offset(when starts the rest of the msg)
+    """
+    offset = 0
+    protocol_code = buffer[offset]
+    offset += 1
+
+    if protocol_code == Protocol.JOIN_ROOM:
+        """
+        typical steps:
+        - (A)Read the Reconnection Token and Serializer ID.
+        - (B)Instantiate the Serializer: If not already available, the serializer instance is created to manage the state
+        - (C)Perform Handshake: If the serializer has a handshake method, it's called to initialize
+        - (D)Mark Room as Joined:
+           - 1 sets hasJoined to true
+           - 2 and invokes the onJoin event
+        - (E)Acknowledge Room Join: Sends a JOIN_ROOM protocol message back to the server to confirm successful join
+        """
+
+        """
+        Handling JOIN_ROOM (code 10):
+        - Typically, read reconnection token, serializer, etc.
+        """
+        # length of reconnection token (or relevant field)
+        length = buffer[offset]
+        offset += 1
+
+        reconnection_token = buffer[offset:offset + length].decode("utf-8")
+        offset += length
+
+        serializer_id_length = buffer[offset]
+        offset += 1
+
+        serializer_id = buffer[offset:offset + serializer_id_length].decode("utf-8")
+        offset += serializer_id_length
+        # return the val. offset so elsewere we know what remains to be processed
+        return reconnection_token, serializer_id, offset
