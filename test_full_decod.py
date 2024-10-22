@@ -1,4 +1,7 @@
-from homemade_deserializer.full_decode import *
+# from homemade_deserializer.full_decode import *
+# import schema
+from colyseus_sdk import schema
+
 
 # ------------------
 #  main
@@ -32,8 +35,6 @@ data_to_crack = [
 # \t\x80\xa8mapWidth\x81\xa6number\xFF
 # \n\x80\xa9mapHeight\x81\xa6number\xFF
 # \x0b\x80\xa7players\x82\x00\x81\xa3map'
-
-import schema
 
 # essais peuvent etre faits via une application de deltas, au choix pioche là-dedans:
 exemple_deltas = [

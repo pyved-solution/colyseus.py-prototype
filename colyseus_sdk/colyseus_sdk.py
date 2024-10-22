@@ -1,4 +1,3 @@
-import logging
 import struct
 import threading
 
@@ -9,10 +8,7 @@ from .elements import Protocol
 from .schema import MutableDataChunk
 
 
-logging.basicConfig(format="%(message)s", level=logging.DEBUG )
-# Example: Import or implement a suitable deserialization method here.
-# You'll need a way to interpret the binary Schema data.
-# This can be replaced by an actual deserializer compatible with Colyseus Schema.
+protocol_state = client = None
 
 
 class ProtocolSt:
@@ -24,12 +20,9 @@ class ProtocolSt:
         self.join_room_ack_done = False
 
 
-protocol_state = ProtocolSt()
-client = None
-
-
 def init_client(server_url, room_name):
-    global client
+    global protocol_state, client
+    protocol_state = ProtocolSt()
     client = ColyseusClient(server_url=server_url, room_name=room_name)
 
 
@@ -63,23 +56,6 @@ class ColyseusClient:
         except requests.RequestException as e:
             print(f"Error reserving seat: {e}")
             return None
-
-    # version1
-    # Step 2: Use seat reservation information to establish WebSocket connection
-    # def connect(self):
-    #     if not self.session_id or not self.room_id:
-    #         raise Exception("Something is wrong with seat reservation? Have you done the reservation?")
-    #     ws_url = f"{self.server_url.replace('http', 'ws')}/{self.room_id}?sessionId={self.session_id}"
-    #     self.ws = websocket.WebSocketApp(
-    #         ws_url,
-    #         on_open=self.on_open,
-    #         on_message=self.on_message,
-    #         on_error=self.on_error,
-    #         on_close=self.on_close
-    #     )
-    #     wst = threading.Thread(target=self.ws.run_forever)
-    #     wst.daemon = True
-    #     wst.start()
 
     def connect(self):
         # Step 2: Use seat reservation information to establish WebSocket connection
@@ -131,16 +107,14 @@ class ColyseusClient:
                 # self.state = room_schema
 
             else:
-                #raise NotImplementedError('only msg1 can be read')
                 # Handle incremental updates
                 print("Delta update received:", data)
                 self.apply_delta_update(data)
 
-                #self.apply_delta_update(deserialized_data)
-
     # Send a binary or text message back to the server to confirm that you received the initial state
     # The exact format of the acknowledgment depends on Colyseus protocol
     # Example: Send an acknowledgment message to continue receiving delta updates
+
     def acknowledge_initial_state(self):
         ack_message = struct.pack('>B', Protocol.JOIN_ROOM)  # >B means big-endian, unsigned char for protocol code
         self.ws.send(ack_message, opcode=websocket.ABNF.OPCODE_BINARY)

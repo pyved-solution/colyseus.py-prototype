@@ -1,0 +1,180 @@
+
+    def connect(self):
+        # Step 2: Use seat reservation information to establish WebSocket connection
+        if not self.session_id or not self.room_id:
+            raise Exception("Seat reservation is required before connecting.")
+
+        def on_data(ws, data, data_type, continue_flag):
+            if data_type == websocket.ABNF.OPCODE_BINARY:
+                print(f"std data msg received: {data}")
+                # Process the initial message, such as room state or room join confirmation
+
+                # TODO enable this again
+
+                # handle_protocol_msg(data, ws, protocol_state)
+
+                # After receiving the initial room state or join confirmation, send acknowledgment
+                if not protocol_state.join_room_ack_done:
+                    print("Sending JOIN acknowledgment to server...")
+                    acknowledge_initial_state(ws)
+                    self.initial_state_received = True
+            else:
+                print('on data weird values for data_type:', data_type)
+
+        def on_open(ws):
+            print(f"Connected to room: {self.room_id}")
+
+        def on_error(ws, error):
+            print(f"WebSocket Error: {error}")
+            # Optional: Attempt to reconnect based on the type of error.
+
+        def on_close(ws, close_status_code, close_msg):
+            print(f"Connection closed: {close_status_code} - {close_msg}")
+            # Optional: Attempt to reconnect or handle disconnection gracefully.
+
+        def on_message(ws, message):
+            print(f"Received text message: {message}")
+            acknowledge_initial_state(ws)
+
+        # Immediately use the seat reservation details to connect
+        ws_url = f"{self.server_url.replace('http', 'ws')}/matchmake/{self.room_id}?sessionId={self.session_id}"
+        print('[ws connection]', ws_url)
+
+        self.ws = websocket.WebSocketApp(
+            ws_url,
+            on_open=on_open,
+            on_message=on_message,  # Handles text messages
+            on_error=on_error,
+            on_close=on_close,
+            on_data=on_data,  # Handles binary messages
+        )
+
+        wst = threading.Thread(target=self.ws.run_forever, kwargs={"ping_interval": 10})
+
+        wst.daemon = True
+        wst.start()
+
+# -----------------------------------------
+
+from .SchemaDeserializer import SchemaDeserializer
+
+
+
+
+
+class CommsState:
+    def __init__(self):
+        self.has_joined = False
+
+
+protocol_state = CommsState()
+import msgpack
+
+
+# -- deprecated
+def unwrap_via_msgpack(data):  # Deserialize the remaining data using MessagePack
+    try:
+        rez = msgpack.unpackb(data, strict_map_key=False)
+        return rez
+    except Exception as e:
+        print(f"Error unwrap remaining data state: {e}")
+
+
+
+# also broken
+
+# def handle_protocol_msg(buffer, ref_ws):
+#     offset = 0
+#     protocol_code = buffer[offset]
+#     offset += 3
+#     if protocol_code == Protocol.JOIN_ROOM:
+#         """
+#         typical steps:
+#         - (A)Read the Reconnection Token and Serializer ID.
+#         - (B)Instantiate the Serializer: If not already available, the serializer instance is created to manage the state
+#         - (C)Perform Handshake: If the serializer has a handshake method, it's called to initialize
+#         - (D)Mark Room as Joined:
+#            - 1 sets hasJoined to true
+#            - 2 and invokes the onJoin event
+#         - (E)Acknowledge Room Join: Sends a JOIN_ROOM protocol message back to the server to confirm successful join
+#         """
+#         # for now we will just do D1 and E,
+#         # because i'm lazy today
+#         protocol_state.has_joined = True
+#         print('  ', ref_ws)
+#         ref_ws.send_bytes([Protocol.JOIN_ROOM])
+#
+#     elif protocol_code == Protocol.ROOM_STATE:
+#         print('room state recu [protocol ]..................')
+#         # Read metadata for the room state
+#         room_id_length = buffer[offset]
+#
+#         # je vais decode mais que après l'espace ' ' (=char 0x20)
+#
+#         utf8_parsed_msg = buffer[7:].decode("utf-8")
+#         print('***',utf8_parsed_msg)
+#
+#         #offset += 1
+#
+#         #room_id = buffer[offset:offset + room_id_length].decode("utf-8")
+#         #offset += room_id_length
+#
+#         # Now we parse the actual state (serialized in a specific format)
+#         # This will depend on the serializer (for example, Schema)
+#         # try:
+#         #     state_length = struct.unpack(">I", buffer[offset:offset + 4])[0]  # Reading a 4-byte length
+#         #     offset += 4
+#         #
+#         #     state_data = buffer[offset:offset + state_length]
+#         #     offset += state_length
+#         #
+#         #     print(f"Room ID: {room_id}, State Data (length {state_length}): {state_data}")
+#         #     # Add further deserialization logic here to fully parse the state data.
+#         #
+#         # except struct.error:
+#         #     print("Failed to unpack state length. Invalid format received.")
+#     else:
+#         print(f"Unhandled protocol code: {protocol_code}")
+
+
+# deprec
+def xx_handle_protocol_msg(msg_raw_view, ref_ws):
+    global protocol_state
+
+    offset = 0
+    protocol_code = msg_raw_view[offset]
+    print('[protocol] read code=', protocol_code)
+    offset += 1
+
+    if protocol_code == Protocol.JOIN_ROOM:
+        """
+        typical steps:
+        - (A)Read the Reconnection Token and Serializer ID.
+        - (B)Instantiate the Serializer: If not already available, the serializer instance is created to manage the state
+        - (C)Perform Handshake: If the serializer has a handshake method, it's called to initialize
+        - (D)Mark Room as Joined:
+           - 1 sets hasJoined to true
+           - 2 and invokes the onJoin event
+        - (E)Acknowledge Room Join: Sends a JOIN_ROOM protocol message back to the server to confirm successful join
+        """
+        # for now we will just do D1 and E,
+        # because i'm lazy today
+        protocol_state.has_joined = True
+        print('  ', ref_ws)
+        ref_ws.send_bytes([Protocol.JOIN_ROOM])
+
+    elif protocol_code == Protocol.ROOM_STATE:
+        # Handle full room state
+        print("[protocol] handle room state: ")
+        print(msg_raw_view)
+        # state = utf8_read(msg_raw_view, offset)
+        # TODO decrypt?
+        # You would also need to implement logic to parse this state properly
+
+    elif protocol_code == Protocol.ROOM_STATE_PATCH:
+        # Handle room state patch (delta)
+        patch = utf8_read(msg_raw_view, offset)
+        print(f"[Protocol]Room state patch: {patch}")
+        # Again, implement appropriate patching logic to merge with the current state
+
+# --------------------------------------------------
