@@ -19,6 +19,7 @@ class PlayerState:
         if 'name' in update_dict:
             self.name = update_dict['name']
 
+
 class GameState:
     def __init__(self):
         self.players = {}

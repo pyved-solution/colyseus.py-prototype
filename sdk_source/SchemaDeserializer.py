@@ -43,65 +43,12 @@ class FieldType:
     # }
 
 
-class SchemaDeserializer:
-    def __init__(self):
-        pass
-
-    def deserialize(self, data):
-        print('schema DESERIALIZED called')
-        offset = 0
-        state = {}
-
-        while offset < len(data):
-            field_type = data[offset]
-            offset += 1
-
-            if field_type == 0x80:  # Example: Handle an empty map (schema marker)
-                state['empty_map'] = {}
-
-            elif field_type == FieldType.U_INT_16:  # Example: Handle unsigned 16-bit integer
-                (value,) = struct.unpack_from(">H", data, offset)
-                offset += 2
-                state['unsigned_16'] = value
-
-            elif field_type == 0x81:  # Handle a basic single-value map
-                map_key_length = data[offset]
-                offset += 1
-                print('mapkey len:', map_key_length)
-                print(data[offset:offset + map_key_length])
-                map_key = data[offset:offset + map_key_length].decode('utf-8')
-                offset += map_key_length
-
-                # Assume next byte represents the value
-                map_value = data[offset]
-                offset += 1
-                state[map_key] = map_value
-
-            elif field_type == 0xa1:  # Assuming it's a string type
-                str_length = data[offset]
-                offset += 1
-                print('str len=', str_length)
-                try:
-                    value = data[offset:offset + str_length].decode('utf-8')
-                except UnicodeDecodeError:
-                    value = "???_hint_Invalid_utf8_encoding"
-                offset += str_length
-                state['string_value'] = value
-
-            else:
-                # field_type == 0xff:  # Placeholder for end marker or similar
-                pass  # Skip for now, no action needed for `0xff`
-
-            # TODO: add further handlers for other supported data types
-
-        return state
-
 
 # -------------
 # test 2
 # --------------
 import struct
-from schema_MyRoomState import Player, MyRoomState
+from .schema_MyRoomState import Player, MyRoomState
 
 
 def decode_player(data: bytes):
@@ -195,53 +142,6 @@ def decode_room_state(data: bytes):
     return state
 
 
-def split_bytes_by_rank(X: bytes):
-    sequences = []
-    current_sequence = bytearray()
-
-    i = 0
-    while i < len(X):
-        if X[i] == 0xFF:  # Detect the rank marker
-            if current_sequence:  # Save the previous sequence if exists
-                sequences.append(bytes(current_sequence))
-                current_sequence = bytearray()  # Start a new sequence
-
-            i += 1  # Move to the rank byte (e.g., 0x01, 0x02, etc.)
-        else:
-            # Accumulate bytes into the current sequence
-            current_sequence.append(X[i])
-        i += 1
-
-    # Append the last sequence if there are any remaining bytes
-    if current_sequence:
-        sequences.append(bytes(current_sequence))
-    return sequences
-
-
-def interpret_seq(data: bytes):
-    field_marker = data[0]
-    offset = 1
-
-    number = None
-    if field_marker == 0xCA:  # 0xca represents a 32-bit float
-        number = struct.unpack('>f', data[offset:offset + 4])[0]  # Big-endian float
-        offset += 4
-    elif field_marker == 0xCC:  # 0xcc represents an 8-bit unsigned int
-        number = struct.unpack('B', data[offset:offset + 1])[0]
-        offset += 1
-    elif field_marker == 0xCD:  # 0xcd represents a 16-bit unsigned int
-        number = struct.unpack('>H', data[offset:offset + 2])[0]  # Big-endian 16-bit int
-        offset += 2
-    elif field_marker == 0x80:
-        number = utf8_read(data, offset)
-
-    if number:
-        return number
-    else:
-        print('cant decode for field_marker:', hex(field_marker))
-        # ValueError(f"Unknown number type: {num_type}")
-
-
 # def xx_decode_player(data: bytes, offset: int):
 #     # Assuming player data has x, y, tick in sequence (all as numbers)
 #     x, offset = decode_number(data, offset)
@@ -310,7 +210,7 @@ def utf8_read(view, offset):
 
         if (byte & 0xf8) == 0xf0:
             my_chr = ((byte & 0x07) << 18) | ((view[i] & 0x3f) << 12) | ((view[i + 1] & 0x3f) << 6) | (
-                        view[i + 2] & 0x3f)
+                    view[i + 2] & 0x3f)
             i += 3
             if my_chr >= 0x010000:
                 my_chr -= 0x010000
@@ -325,17 +225,11 @@ def utf8_read(view, offset):
 
 if __name__ == '__main__':
     # Example usage
-    # schema_definition = {}  # Define your schema here as a reference if needed
-    # deserializer = SchemaDeserializer()
+    schema_definition = {}  # schema will be re-constructed
+
     raw_data = b'\x80\x01\x81\x01\xff\x01\x80\x00\x02\x80\x01\x03\xff\x02\x81\x04\x80\x00\xff\x03\x81\x05\x80\x01\xff\x04\x80\x00\x06\x80\x01\x07\x80\x02\x08\xff\x05\x80\x00\t\x80\x01\n\x80\x02\x0b\xff\x06\x80\xa1x\x81\xa6number\xff\x07\x80\xa1y\x81\xa6number\xff\x08\x80\xa4tick\x81\xa6number\xff\t\x80\xa8mapWidth\x81\xa6number\xff\n\x80\xa9mapHeight\x81\xa6number\xff\x0b\x80\xa7players\x82\x00\x81\xa3map'
-    print(raw_data)
-    # deserialized_state = deserializer.deserialize(raw_data)
-    # print(deserialized_state)
-
-    all_seq = split_bytes_by_rank(raw_data)
-    print('nb seq=', len(all_seq))
-    for one_seq in all_seq:
-        print(one_seq)
-        print(interpret_seq(one_seq))
-
-    print('exit prog')
+    SchemaDeserializer.load(
+        raw_data, schema_definition
+    )
+    print('-the schema def-')
+    print(schema_definition)
