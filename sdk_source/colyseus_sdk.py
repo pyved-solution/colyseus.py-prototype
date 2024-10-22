@@ -1,14 +1,15 @@
-import json
-import threading
+import logging
 import struct
+import threading
+
 import requests
 import websocket
 
-from .elements import Protocol, SchemaDeserializer
+from .elements import Protocol
+from .schema import MutableDataChunk
 
-import logging
+
 logging.basicConfig(format="%(message)s", level=logging.DEBUG )
-
 # Example: Import or implement a suitable deserialization method here.
 # You'll need a way to interpret the binary Schema data.
 # This can be replaced by an actual deserializer compatible with Colyseus Schema.
@@ -19,7 +20,7 @@ class ProtocolSt:
         self.has_joined = False
         self.reconnection_token = None
         self.serializer_id = None
-        self.schema_def = {}
+        self.mutable_data = None
         self.join_room_ack_done = False
 
 
@@ -32,80 +33,11 @@ def init_client(server_url, room_name):
     client = ColyseusClient(server_url=server_url, room_name=room_name)
 
 
-def deserialize_schema_data(data):
-    # Placeholder for deserialization logic
-    # Example: Interpret the data to reconstruct the game state
-    # You might need a specific protocol to interpret the incoming bytes correctly
-    return {"placeholder_key": "deserialized_value"}
-
-
-def extract_first_fields(buffer):
-    """
-    :param buffer:
-    :return: reconnection_token, serializer_id, offset(when starts the rest of the msg)
-    """
-    offset = 0
-    protocol_code = buffer[offset]
-    offset += 1
-
-    if protocol_code == Protocol.JOIN_ROOM:
-        """
-        typical steps:
-        - (A)Read the Reconnection Token and Serializer ID.
-        - (B)Instantiate the Serializer: If not already available, the serializer instance is created to manage the state
-        - (C)Perform Handshake: If the serializer has a handshake method, it's called to initialize
-        - (D)Mark Room as Joined: 
-           - 1 sets hasJoined to true
-           - 2 and invokes the onJoin event
-        - (E)Acknowledge Room Join: Sends a JOIN_ROOM protocol message back to the server to confirm successful join
-        """
-
-        """
-        Handling JOIN_ROOM (code 10):
-        - Typically, read reconnection token, serializer, etc.
-        """
-
-        length = buffer[offset]  # The length of reconnection token (or relevant field)
-        print('   (length)', length)
-        offset += 1
-
-        reconnection_token = buffer[offset:offset + length].decode("utf-8")
-        print('   (reconnection_token)', protocol_state.reconnection_token)
-        offset += length
-
-        serializer_id_length = buffer[offset]
-        offset += 1
-        print('   (serializer_id_len)', serializer_id_length)
-
-        serializer_id = buffer[offset:offset + serializer_id_length].decode("utf-8")
-        offset += serializer_id_length
-        print('   (serializer)', protocol_state.serializer_id)
-
-        # Assuming that the remaining data is what you need to deserialize
-        print('proceeding to decode the rest of the msg...')
-        return reconnection_token, serializer_id, offset
-
-
-from . import schema
-
-
 class ColyseusClient:
-    # def __init__(self, server_url, room_name):
-    #     self.server_url = server_url
-    #     self.room_name = room_name
-    #     self.ws = None
-    #     self.state = {}
-    #     self.session_id = None
-    #     self.room_id = None
-    #
-    #     self.initial_state_received = False
-
     def __init__(self, server_url, room_name):
         self.server_url = server_url
         self.room_name = room_name
         self.ws = None
-
-        self.fetched_state = {}
 
         self.session_id = None
         self.room_id = None
@@ -172,6 +104,7 @@ class ColyseusClient:
         print(f"Connected to room: {self.room_id}")
 
     def on_data(self, ws, data, data_type, continue_flag):
+        global protocol_state
         # This method handles binary data
         print('debug:binary data reception')
         if data_type == websocket.ABNF.OPCODE_BINARY:
@@ -180,23 +113,22 @@ class ColyseusClient:
 
             if not self.initial_state_received:  # msg initial, Handle 1st message
                 print("Initial room state(raw):", data)
-                session, serializer, offset_nxt_chunk = extract_first_fields(data)
-                nxt_chunk = data[offset_nxt_chunk:]
-
-                # self.handle_state_update(deserialized_data)
-                self.initial_state_received = True
-                SchemaDeserializer.load(
-                    nxt_chunk, self.fetched_state
-                )
-                room_schema = schema.Schema()
-                for var, schema_s_type in self.fetched_state.items():
-                    room_schema.add_field(var, schema_s_type)
-                    print(var, schema_s_type)
-
-                self.state = room_schema
-
-                # Send the acknowledgment to the server!
+                # Send ack  to the server!
                 self.acknowledge_initial_state()
+
+                # process the 1st message
+                protocol_state.mutable_data = MutableDataChunk
+                # session, serializer, offset_nxt_chunk = extract_first_fields(data)
+                # nxt_chunk = data[offset_nxt_chunk:]
+                # self.initial_state_received = True
+                # SchemaDeserializer.load(
+                #     nxt_chunk, self.fetched_state
+                # )
+                # room_schema = schema.Schema()
+                # for var, schema_s_type in self.fetched_state.items():
+                #     room_schema.add_field(var, schema_s_type)
+                #     print(var, schema_s_type)
+                # self.state = room_schema
 
             else:
                 #raise NotImplementedError('only msg1 can be read')
