@@ -88,7 +88,9 @@ export class GameScene extends Phaser.Scene {
         this.inputPayload.right = this.cursorKeys.right.isDown;
         this.inputPayload.up = this.cursorKeys.up.isDown;
         this.inputPayload.down = this.cursorKeys.down.isDown;
+				if ( this.inputPayload.left || this.inputPayload.right || this.inputPayload.up || this.inputPayload.down){
         this.room.send(0, this.inputPayload);
+				}
     
         if (this.inputPayload.left) {
             this.currentPlayer.x -= velocity;
