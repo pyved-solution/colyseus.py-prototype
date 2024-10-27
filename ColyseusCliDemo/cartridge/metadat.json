@@ -1,0 +1,43 @@
+{
+    "vmlib_ver": "24_9a3",
+    "dependencies": {
+        "pyved_engine": [
+            "24_9a3",
+            "pyv"
+        ],
+		"colyseus_sdk": [
+			"0.1",
+			"net"
+		]
+    },
+    "description": "experimental game where i use the actor-based pattern +Colyseus",
+
+    "author": "Thomas",
+    "asset_list": [
+    ],
+    "asset_base_folder": "my_folder",
+    "sound_base_folder": ".",
+    "sound_list": [],
+    "slug": "ColyseusCliDemo",
+    "title": "Untitled Game",
+    "thumbnail512x384": "thumb_2.png",
+    "thumbnail512x512": "thumb_1.png",
+    "ktg_services": false,
+    "instructions": "not provided",
+    "uses_challenge": false,
+    "has_game_server": false,
+    "ncr_faucet": false,
+    "game_genre": [
+        "Experimental",
+        "Arcade"
+    ],
+    "game_title": "ColyseusCliDemo",
+    "build_date": "Tue Oct 22 20:11:29 2024",
+    "source_files": [
+        "gamedef.py",
+        "shared.py",
+        "systems.py",
+        "world.py",
+        "__init__.py"
+    ]
+}
